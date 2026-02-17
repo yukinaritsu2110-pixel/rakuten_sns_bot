@@ -1,0 +1,22 @@
+{
+  "brand_name": "ゆきな",
+  "theme": {
+    "colors": {
+      "bg": [250, 248, 244],
+      "card": [255, 255, 255],
+      "text": [20, 20, 20],
+      "muted": [120, 120, 120]
+    },
+    "font": {
+      "regular": "assets/fonts/NotoSansJP-Regular.otf",
+      "bold": "assets/fonts/NotoSansJP-Bold.otf"
+    }
+  },
+  "tone": {
+    "warmth": 0.7,
+    "minimal": true,
+    "emoji": false,
+    "no_hype": true
+  },
+  "platform_targets": ["pinterest", "instagram"]
+}
