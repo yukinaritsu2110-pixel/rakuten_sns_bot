@@ -50,6 +50,18 @@ def fallback_copy(topic: dict, item: dict) -> dict:
     }
 
 
+def safe_slug(text: str) -> str:
+    """Create a filesystem-safe slug for output filenames."""
+    keep = []
+    for ch in text:
+        if ch.isalnum() or ch in ("-", "_"):
+            keep.append(ch)
+        else:
+            keep.append("_")
+    slug = "".join(keep).strip("_")
+    return slug or "item"
+
+
 def main() -> None:
     args = parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -118,7 +130,9 @@ def main() -> None:
                 "seed": seed,
             }
 
-            id_base = f"{topic.get('id','topic')}_{item.get('item_code','item').replace('/','_')}"
+            topic_id = safe_slug(str(topic.get("id", "topic")))
+            item_code = safe_slug(str(item.get("item_code", "item")))
+            id_base = f"{topic_id}_{item_code}"
             day_dir = root / "output" / str(d)
 
             pin_path = day_dir / "pinterest" / "pins" / f"pin_{id_base}.jpg"
@@ -138,6 +152,8 @@ def main() -> None:
             if args.platform in ("instagram", "both"):
                 if not pin_path.exists():
                     render_pinterest(pin_path, item, topic.get("name", ""), payload["image_text"], cfg.account, cfg.env.brand_name)
+                if pin_path not in slides_for_reel:
+                    slides_for_reel.append(pin_path)
                 render_instagram_feed(ig_img_path, pin_path, cfg.account)
                 write_meta_json(i_json, payload)
                 write_meta_txt(i_txt, payload, "instagram")
