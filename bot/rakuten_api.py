@@ -30,15 +30,25 @@ class RakutenAPI:
             params["genreId"] = genre_id
 
         for i in range(3):
-            r = requests.get(self.endpoint, params=params, timeout=40)
-            if r.status_code == 429:
-                sleep = 2 ** i
-                logging.warning("Rakuten 429 retry in %ss", sleep)
-                time.sleep(sleep)
-                continue
-            r.raise_for_status()
-            data = r.json()
-            return [x.get("Item", {}) for x in data.get("Items", [])]
+            sleep = 2**i
+            try:
+                r = requests.get(self.endpoint, params=params, timeout=40)
+                if r.status_code == 429:
+                    logging.warning("Rakuten 429 retry in %ss", sleep)
+                    time.sleep(sleep)
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                return [x.get("Item", {}) for x in data.get("Items", [])]
+            except requests.RequestException as e:
+                logging.warning("Rakuten request failed attempt %s: %s", i + 1, e)
+                if i < 2:
+                    time.sleep(sleep)
+                    continue
+                return []
+            except ValueError as e:
+                logging.warning("Rakuten response JSON parse failed: %s", e)
+                return []
         return []
 
     @staticmethod
