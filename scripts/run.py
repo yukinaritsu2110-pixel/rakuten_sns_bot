@@ -13,6 +13,7 @@ from bot.prompt_loader import load_prompts, render_prompt
 from bot.rakuten_api import RakutenAPI
 from bot.render import render_instagram_feed, render_pinterest
 from bot.selector import choose_item
+from bot.social_api import SocialAutoPoster
 from bot.utils import date_range, init_logging, stable_seed
 from bot.video import make_reel
 
@@ -22,6 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--days", type=int, default=None)
     parser.add_argument("--start", type=str, default=None)
     parser.add_argument("--platform", choices=["pinterest", "instagram", "both"], default="both")
+    parser.add_argument("--autopost", action="store_true", help="Generate and then publish via Pinterest/Instagram APIs")
+    parser.add_argument("--autopost-dry-run", action="store_true", help="Log API payload intent without posting")
     return parser.parse_args()
 
 
@@ -75,6 +78,17 @@ def main() -> None:
     prompts = load_prompts(root)
     ollama = OllamaClient(cfg.env.ollama_url, cfg.env.ollama_model, root / "logs" / "llm_calls.jsonl")
     rakuten = RakutenAPI(cfg.env.rakuten_application_id, cfg.env.rakuten_affiliate_id)
+
+    autoposter = SocialAutoPoster(
+        enabled=cfg.env.auto_post_enabled or args.autopost or args.autopost_dry_run,
+        dry_run=args.autopost_dry_run,
+        timeout_sec=cfg.env.auto_post_timeout_sec,
+        asset_public_base_url=cfg.env.social_asset_public_base_url,
+        pinterest_access_token=cfg.env.pinterest_access_token,
+        pinterest_board_id=cfg.env.pinterest_board_id,
+        instagram_access_token=cfg.env.instagram_access_token,
+        instagram_user_id=cfg.env.instagram_user_id,
+    )
 
     for d in date_range(start, days):
         slides_for_reel = []
@@ -147,6 +161,7 @@ def main() -> None:
                 write_meta_json(p_json, payload)
                 write_meta_txt(p_txt, payload, "pinterest")
                 append_index_csv(day_dir / "pinterest" / "index.csv", {"topic_id": topic.get("id"), "item_code": item.get("item_code"), "pin": str(pin_path)})
+                autoposter.post("pinterest", payload, pin_path, root)
                 slides_for_reel.append(pin_path)
 
             if args.platform in ("instagram", "both"):
@@ -158,6 +173,7 @@ def main() -> None:
                 write_meta_json(i_json, payload)
                 write_meta_txt(i_txt, payload, "instagram")
                 append_index_csv(day_dir / "instagram" / "index.csv", {"topic_id": topic.get("id"), "item_code": item.get("item_code"), "image": str(ig_img_path)})
+                autoposter.post("instagram", payload, ig_img_path, root)
 
         if args.platform in ("instagram", "both") and slides_for_reel:
             reel_path = root / "output" / str(d) / "instagram" / "reels" / f"reel_{d}.mp4"
