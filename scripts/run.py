@@ -5,6 +5,7 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 
+from bot.autopost import AutoPoster
 from bot.config import load_app_config
 from bot.copywriter import normalize_payload, validate_payload
 from bot.export import append_index_csv, write_meta_json, write_meta_txt
@@ -22,6 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--days", type=int, default=None)
     parser.add_argument("--start", type=str, default=None)
     parser.add_argument("--platform", choices=["pinterest", "instagram", "both"], default="both")
+    parser.add_argument("--autopost", action="store_true", help="Send generated posts to configured webhooks")
+    parser.add_argument("--autopost-dry-run", action="store_true", help="Log auto-post payloads without calling webhooks")
     return parser.parse_args()
 
 
@@ -75,6 +78,14 @@ def main() -> None:
     prompts = load_prompts(root)
     ollama = OllamaClient(cfg.env.ollama_url, cfg.env.ollama_model, root / "logs" / "llm_calls.jsonl")
     rakuten = RakutenAPI(cfg.env.rakuten_application_id, cfg.env.rakuten_affiliate_id)
+
+    autoposter = AutoPoster(
+        enabled=cfg.env.auto_post_enabled or args.autopost,
+        pinterest_webhook=cfg.env.auto_post_pinterest_webhook,
+        instagram_webhook=cfg.env.auto_post_instagram_webhook,
+        timeout_sec=cfg.env.auto_post_timeout_sec,
+        dry_run=args.autopost_dry_run,
+    )
 
     for d in date_range(start, days):
         slides_for_reel = []
@@ -147,6 +158,7 @@ def main() -> None:
                 write_meta_json(p_json, payload)
                 write_meta_txt(p_txt, payload, "pinterest")
                 append_index_csv(day_dir / "pinterest" / "index.csv", {"topic_id": topic.get("id"), "item_code": item.get("item_code"), "pin": str(pin_path)})
+                autoposter.post("pinterest", payload, pin_path)
                 slides_for_reel.append(pin_path)
 
             if args.platform in ("instagram", "both"):
@@ -158,6 +170,7 @@ def main() -> None:
                 write_meta_json(i_json, payload)
                 write_meta_txt(i_txt, payload, "instagram")
                 append_index_csv(day_dir / "instagram" / "index.csv", {"topic_id": topic.get("id"), "item_code": item.get("item_code"), "image": str(ig_img_path)})
+                autoposter.post("instagram", payload, ig_img_path)
 
         if args.platform in ("instagram", "both") and slides_for_reel:
             reel_path = root / "output" / str(d) / "instagram" / "reels" / f"reel_{d}.mp4"

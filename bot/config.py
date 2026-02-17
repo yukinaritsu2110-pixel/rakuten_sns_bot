@@ -39,6 +39,10 @@ class EnvConfig:
     ollama_url: str
     brand_name: str
     default_days: int
+    auto_post_enabled: bool
+    auto_post_pinterest_webhook: str | None
+    auto_post_instagram_webhook: str | None
+    auto_post_timeout_sec: int
 
 
 @dataclass
@@ -61,6 +65,10 @@ def load_app_config(root_dir: Path) -> AppConfig:
         ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
         brand_name=os.getenv("BRAND_NAME", account.get("brand_name", "brand")),
         default_days=int(os.getenv("DEFAULT_DAYS", "7")),
+        auto_post_enabled=os.getenv("AUTO_POST_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+        auto_post_pinterest_webhook=os.getenv("AUTO_POST_PINTEREST_WEBHOOK") or None,
+        auto_post_instagram_webhook=os.getenv("AUTO_POST_INSTAGRAM_WEBHOOK") or None,
+        auto_post_timeout_sec=int(os.getenv("AUTO_POST_TIMEOUT_SEC", "15")),
     )
     topics = topics_doc.get("topics", [])
     return AppConfig(root_dir=root_dir, env=env, account=account, topics=topics)
